@@ -30,7 +30,7 @@
       <div class="radar-panel__title-group">
         <span class="radar-panel__icon">📡</span>
         <div>
-          <div class="radar-panel__title">3D Radar Coverage</div>
+          <div class="radar-panel__title">Radar Beam</div>
           <div class="radar-panel__subtitle">
             {{ editorState.selectedEntity()?.definition?.name ?? editorState.selectedEntity()?.id }}
           </div>
@@ -38,14 +38,6 @@
       </div>
 
       <div class="radar-panel__actions">
-        <button
-          class="rays-pill"
-          [class.on]="getRadarProp('drawRays', false)"
-          (click)="toggleDrawRays()">
-          <span class="rays-pill__dot"></span>
-          Rays: {{ getRadarProp('drawRays', false) ? 'ON' : 'OFF' }}
-        </button>
-
         <button class="icon-btn" title="Refresh coverage" (click)="refreshRadarCoverage()">↻</button>
         <button class="icon-btn" title="Close" (click)="closeRadarPanel()">✕</button>
       </div>
@@ -54,221 +46,197 @@
     <div class="radar-panel__body">
 
       <section class="radar-section">
-        <h4 class="radar-section__title">Antenna &amp; Sector</h4>
+        <h4 class="radar-section__title">Beam</h4>
 
-        <label class="field">
-          <span>Sector Start (°)</span>
-          <input type="number" min="0" max="360"
-            [value]="getRadarProp('sectorStartDeg', 0)"
-            (change)="onSectorStartChange($any($event.target).value)">
-        </label>
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Direction</span>
+            <div class="beam-value">
+              <input class="beam-number" type="number" min="0" max="359" step="1"
+                [value]="beam().azimuthDeg"
+                (change)="onBeamChange('beamAzimuthDeg', $any($event.target).value)">
+              <em>°</em>
+            </div>
+          </div>
+          <input class="beam-slider" type="range" min="0" max="359" step="1"
+            [value]="beam().azimuthDeg"
+            (change)="onBeamChange('beamAzimuthDeg', $any($event.target).value)">
+          <div class="beam-control__range"><span>N 0°</span><span>359°</span></div>
+        </div>
 
-        <label class="field">
-          <span>Sector Sweep (°)</span>
-          <input type="number" min="1" max="360"
-            [value]="getRadarProp('sectorSweepDeg', 360)"
-            (change)="onSectorSweepChange($any($event.target).value)">
-        </label>
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Beam Width</span>
+            <div class="beam-value">
+              <input class="beam-number" type="number" min="1" max="360" step="1"
+                [value]="beam().widthDeg"
+                (change)="onBeamChange('beamWidthDeg', $any($event.target).value)">
+              <em>°</em>
+            </div>
+          </div>
+          <input class="beam-slider" type="range" min="1" max="360" step="1"
+            [value]="beam().widthDeg"
+            (change)="onBeamChange('beamWidthDeg', $any($event.target).value)">
+          <div class="beam-control__range"><span>Narrow</span><span>All round</span></div>
+        </div>
+
+        <div class="beam-presets">
+          @for (w of beamWidthPresets; track w) {
+            <button class="beam-preset" [class.active]="beam().widthDeg === w"
+              (click)="onBeamChange('beamWidthDeg', '' + w)">{{ w }}°</button>
+          }
+        </div>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Min Angle (bottom of beam)</span>
+            <div class="beam-value">
+              <input class="beam-number" type="number" min="-10" max="90" step="0.5"
+                [value]="beam().minElevationDeg"
+                (change)="onBeamChange('beamMinElevationDeg', $any($event.target).value)">
+              <em>°</em>
+            </div>
+          </div>
+          <input class="beam-slider" type="range" min="-10" max="90" step="0.5"
+            [value]="beam().minElevationDeg"
+            (input)="onBeamChange('beamMinElevationDeg', $any($event.target).value)">
+          <div class="beam-control__range"><span>-10°</span><span>90°</span></div>
+        </div>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Max Angle (top of beam)</span>
+            <div class="beam-value">
+              <input class="beam-number" type="number" min="-10" max="90" step="0.5"
+                [value]="beam().maxElevationDeg"
+                (change)="onBeamChange('beamMaxElevationDeg', $any($event.target).value)">
+              <em>°</em>
+            </div>
+          </div>
+          <input class="beam-slider" type="range" min="-10" max="90" step="0.5"
+            [value]="beam().maxElevationDeg"
+            (input)="onBeamChange('beamMaxElevationDeg', $any($event.target).value)">
+          <div class="beam-control__range"><span>-10°</span><span>90°</span></div>
+        </div>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Range</span>
+            <div class="beam-value">
+              <input class="beam-number" type="number" min="500" max="100000" step="500"
+                [value]="beam().range"
+                (change)="onBeamChange('beamRange', $any($event.target).value)">
+              <em>m</em>
+            </div>
+          </div>
+          <input class="beam-slider" type="range" min="500" max="100000" step="500"
+            [value]="beam().range"
+            (change)="onBeamChange('beamRange', $any($event.target).value)">
+          <div class="beam-control__range"><span>0.5 km</span><span>100 km</span></div>
+        </div>
 
         <label class="field">
           <span>Mast Height (m)</span>
           <input type="number" min="0" max="200"
-            [value]="getRadarProp('antennaMastHeight', 0)"
+            [value]="beam().mastHeight"
             (change)="onElevationChange($any($event.target).value)">
         </label>
 
+        <label class="field">
+          <span>Aircraft Height Above Ground (m)</span>
+          <input type="number" min="0" step="10"
+            [value]="beam().targetHeightAgl"
+            (change)="onTargetHeightChange($any($event.target).value)">
+        </label>
+
+        <div class="zone-card__hint">
+          0 = the ground itself. Raise the min angle and the beam lifts over the hills, so the red area
+          shrinks; lower it and more terrain cuts into the beam, so the red area grows.
+        </div>
+      </section>
+
+      <section class="radar-section">
+        <h4 class="radar-section__title">Display</h4>
+
+        <div class="shadow-legend">
+          <span class="shadow-legend__item"><span class="swatch swatch--lit"></span>Beam lands on ground</span>
+          <span class="shadow-legend__item"><span class="swatch swatch--blocked"></span>Blocked by terrain</span>
+          <span class="shadow-legend__item"><span class="swatch swatch--ray"></span>Ray hits terrain</span>
+        </div>
+
         <label class="checkbox-field">
           <input type="checkbox"
-            [checked]="getRadarProp('drawRays', false)"
-            (change)="onDrawRaysChange($any($event.target).checked)">
-          <span>Draw 3D Rays</span>
+            [checked]="radarStyle().showBeam"
+            (change)="onStyleChange({ showBeam: $any($event.target).checked })">
+          <span>Show Beam</span>
         </label>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Beam Opacity</span>
+            <strong>{{ radarStyle().beamOpacity * 100 | number:'1.0-0' }}%</strong>
+          </div>
+          <input class="beam-slider" type="range" min="0" max="1" step="0.01"
+            [value]="radarStyle().beamOpacity"
+            (input)="onStyleChange({ beamOpacity: +$any($event.target).value })">
+          <div class="beam-control__range"><span>Transparent</span><span>Solid</span></div>
+        </div>
+
+        <label class="checkbox-field">
+          <input type="checkbox"
+            [checked]="radarStyle().showBlocked"
+            (change)="onStyleChange({ showBlocked: $any($event.target).checked })">
+          <span>Show Ground Footprint (green / red)</span>
+        </label>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Footprint Opacity</span>
+            <strong>{{ radarStyle().blockedOpacity * 100 | number:'1.0-0' }}%</strong>
+          </div>
+          <input class="beam-slider" type="range" min="0" max="1" step="0.01"
+            [value]="radarStyle().blockedOpacity"
+            (input)="onStyleChange({ blockedOpacity: +$any($event.target).value })">
+          <div class="beam-control__range"><span>Transparent</span><span>Solid</span></div>
+        </div>
+
+        <label class="checkbox-field">
+          <input type="checkbox"
+            [checked]="radarStyle().showRays"
+            (change)="onStyleChange({ showRays: $any($event.target).checked })">
+          <span>Show Rays (min to max angle)</span>
+        </label>
+
+        <div class="zone-card__fields">
+          <label class="field">
+            <span>RAYS ACROSS</span>
+            <input type="number" min="1" max="180" step="1"
+              [value]="beam().raysAcross"
+              (change)="onBeamChange('raysAcross', $any($event.target).value)">
+          </label>
+          <label class="field">
+            <span>RAYS UP</span>
+            <input type="number" min="1" max="60" step="1"
+              [value]="beam().raysUp"
+              (change)="onBeamChange('raysUp', $any($event.target).value)">
+          </label>
+        </div>
+
+        <div class="zone-card__hint">
+          Each ray stops where it meets the terrain (orange dot). Rays that never meet it run to the full range.
+          The beam's walls join the tips of all its rays (one every 0.25° up, up to 240 directions across).
+        </div>
 
         <label class="checkbox-field">
           <input type="checkbox"
             [checked]="getRadarProp('showBlockedPoints', false)"
             (change)="onShowBlockedPointsChange($any($event.target).checked)">
-          <span>Show Terrain Blocking Points</span>
+          <span>Mark Blocking Ridges</span>
         </label>
-
-        <div class="beam-control">
-
-  <div class="beam-control__header">
-    <span>Beam Opacity</span>
-    <strong>
-      {{ getRadarProp('beamOpacity', 0.28) * 100 | number:'1.0-0' }}%
-    </strong>
-  </div>
-
-  <input
-    class="beam-slider"
-    type="range"
-    min="0"
-    max="1"
-    step="0.01"
-    [value]="getRadarProp('beamOpacity', 0.28)"
-    (input)="onBeamOpacityChange($any($event.target).value)"
-  >
-
-  <div class="beam-control__range">
-    <span>Transparent</span>
-    <span>Solid</span>
-  </div>
-
-</div>
-
-
-<div class="beam-control">
-
-  <div class="beam-control__header">
-    <span>Interior Beam</span>
-    <strong>
-      {{ getRadarProp('interiorOpacity', 0.08) * 100 | number:'1.0-0' }}%
-    </strong>
-  </div>
-
-  <input
-    class="beam-slider beam-slider--interior"
-    type="range"
-    min="0"
-    max="0.30"
-    step="0.01"
-    [value]="getRadarProp('interiorOpacity', 0.08)"
-    (input)="onInteriorOpacityChange($any($event.target).value)"
-  >
-
-  <div class="beam-control__range">
-    <span>Off</span>
-    <span>Strong</span>
-  </div>
-
-</div>
-
-
-<label class="checkbox-field">
-  <input
-    type="checkbox"
-    [checked]="getRadarProp('showInterior', true)"
-    (change)="onInteriorToggle($any($event.target).checked)"
-  >
-  <span>Show Interior Beam</span>
-</label>
-
-
-<div class="beam-control">
-
-  <div class="beam-control__header">
-    <span>Zone Cylinders</span>
-    <strong>
-      {{ getRadarProp('cylinderOpacity', 0.15) * 100 | number:'1.0-0' }}%
-    </strong>
-  </div>
-
-  <input
-    class="beam-slider"
-    type="range"
-    min="0"
-    max="1"
-    step="0.01"
-    [value]="getRadarProp('cylinderOpacity', 0.15)"
-    (input)="onCylinderOpacityChange($any($event.target).value)"
-  >
-
-  <div class="beam-control__range">
-    <span>Transparent</span>
-    <span>Solid</span>
-  </div>
-
-</div>
-
-
-<label class="checkbox-field">
-  <input
-    type="checkbox"
-    [checked]="getRadarProp('showCylinders', true)"
-    (change)="onCylinderToggle($any($event.target).checked)"
-  >
-  <span>Show Zone Cylinders</span>
-</label>
       </section>
 
       <section class="radar-section">
-        <h4 class="radar-section__title">Terrain Blocking</h4>
-
-        <label class="field">
-          <span>Aircraft Height Above Ground (m)</span>
-          <input type="number" min="0" step="10"
-            [value]="getRadarProp('targetHeightAgl', 20)"
-            (change)="onTargetHeightChange($any($event.target).value)">
-        </label>
-
-        <div class="zone-card__hint">
-          Tint = an aircraft flying this high above the terrain is detected there.
-          Clear = hidden by terrain or outside the beam. 0 = the ground itself.
-        </div>
-
-        <div class="shadow-legend">
-          <span class="shadow-legend__item"><span class="swatch swatch--lit"></span>Aircraft detected (zone colour)</span>
-          <span class="shadow-legend__item"><span class="swatch swatch--shadow"></span>Not detected (optional dark)</span>
-        </div>
-
-        <label class="checkbox-field">
-          <input type="checkbox"
-            [checked]="getRadarProp('showShadow', false)"
-            (change)="onShadowToggle($any($event.target).checked)">
-          <span>Darken Not-Detected Area</span>
-        </label>
-
-        <div class="beam-control">
-          <div class="beam-control__header">
-            <span>Shadow Opacity</span>
-            <strong>{{ getRadarProp('shadowOpacity', 0.6) * 100 | number:'1.0-0' }}%</strong>
-          </div>
-          <input
-            class="beam-slider"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            [value]="getRadarProp('shadowOpacity', 0.6)"
-            (input)="onShadowOpacityChange($any($event.target).value)">
-          <div class="beam-control__range">
-            <span>Transparent</span>
-            <span>Solid</span>
-          </div>
-        </div>
-
-        <label class="checkbox-field">
-          <input type="checkbox"
-            [checked]="getRadarProp('showBand', false)"
-            (change)="onBandToggle($any($event.target).checked)">
-          <span>Zone Beams in the Air (3D)</span>
-        </label>
-
-        <div class="zone-card__hint">
-          Each zone's beam in the air, see-through in its colour: green 0-10°,
-          yellow up to 20°, red up to 30°. Cut away where terrain hides the air;
-          the underside hangs where a hill lifts the lowest height the radar sees.
-        </div>
-
-        <div class="beam-control">
-          <div class="beam-control__header">
-            <span>Air Coverage Opacity</span>
-            <strong>{{ getRadarProp('bandOpacity', 0.3) * 100 | number:'1.0-0' }}%</strong>
-          </div>
-          <input
-            class="beam-slider"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            [value]="getRadarProp('bandOpacity', 0.3)"
-            (change)="onBandOpacityChange($any($event.target).value)">
-          <div class="beam-control__range">
-            <span>Transparent</span>
-            <span>Solid</span>
-          </div>
-        </div>
+        <h4 class="radar-section__title">Explain Blocking</h4>
 
         <label class="checkbox-field">
           <input type="checkbox"
@@ -285,7 +253,7 @@
             <span>Follow Mouse</span>
           </label>
           <div class="zone-card__hint">
-            {{ losProbeHover() ? 'Move the mouse' : 'Click any spot' }} inside the coverage to see the radar's line of sight to it.
+            {{ losProbeHover() ? 'Move the mouse' : 'Click any spot' }} inside the beam to see the radar's line of sight to it.
           </div>
         }
 
@@ -300,43 +268,6 @@
             }
           </div>
         }
-      </section>
-
-      <section class="radar-section">
-        <h4 class="radar-section__title">Coverage Zones (Width &amp; Range)</h4>
-
-        @for (zone of radarZones; track zone.name) {
-          <div class="zone-card">
-            <label class="zone-card__header">
-              <input type="checkbox"
-                [checked]="getZoneVisible(zone.name)"
-                (change)="onZoneVisibilityChange(zone.name, $any($event.target).checked)">
-              <span class="zone-dot" [style.background]="zone.cssColor"></span>
-              <span class="zone-name">{{ zone.name }}</span>
-            </label>
-
-            <div class="zone-card__fields">
-              <label class="field">
-                <span>RANGE (M)</span>
-                <input type="number" min="500"
-                  [value]="getZoneRange(zone.name) ?? zoneDefaultRange(zone.name)"
-                  (change)="onZoneRangeChange(zone.name, $any($event.target).value)">
-              </label>
-
-              <label class="field">
-                <span>ANGLE WIDTH (°)</span>
-                <input type="number" step="0.5" min="0" max="90"
-                  [value]="getZoneMaxElevation(zone.name) ?? zoneDefaultMaxElevation(zone.name)"
-                  (change)="onZoneMaxElevationChange(zone.name, $any($event.target).value)">
-              </label>
-            </div>
-
-            <div class="zone-card__hint">
-              Rays from 0° to {{ getZoneMaxElevation(zone.name) ?? zoneDefaultMaxElevation(zone.name) }}° (equally divided)
-            </div>
-          </div>
-        }
-
       </section>
 
     </div>

@@ -179,23 +179,27 @@ export class CesiumLosProbe {
             }, false);
         }
 
-        const litBy = inRange.find(z => targetDeg <= z.maxElevationDeg);
+        const litBy = inRange.find(z => targetDeg >= z.minElevationDeg && targetDeg <= z.maxElevationDeg);
         if (!litBy) {
+            // Below every zone's lower edge, or above every zone's top.
+            const below = inRange.every(z => targetDeg < z.minElevationDeg);
             this.drawRay(geometry, points[last], heights[last], agl, COLOR_GRAZING);
             return this.finish(token, points[last], heights[last], {
                 status: "above",
-                title: "TOO HIGH FOR THE BEAM",
-                details: [`${targetDeg.toFixed(1)}° up, beam reaches ${Math.max(...inRange.map(z => z.maxElevationDeg))}°`],
+                title: below ? "BELOW THE BEAM" : "TOO HIGH FOR THE BEAM",
+                details: [below
+                    ? `${targetDeg.toFixed(1)}° up, beam starts at ${Math.min(...inRange.map(z => z.minElevationDeg))}°`
+                    : `${targetDeg.toFixed(1)}° up, beam reaches ${Math.max(...inRange.map(z => z.maxElevationDeg))}°`],
                 explanation: [
                     `No terrain blocks the line from the radar to an aircraft ${agl} m above this spot.`,
                     `But that aircraft is ${targetDeg.toFixed(1)}° up from the antenna (${km(dist)} away), ` +
-                    `steeper than the beam goes. Zone by zone:`,
+                    `${below ? "lower" : "steeper"} than the beam goes. Zone by zone:`,
                     ...CesiumRadarCoverage.DEFAULT_3D_ZONES.map(config => {
                         const zone = geometry.zones.find(z => z.name === config.name);
                         if (!zone) return `${config.name}: turned off`;
                         if (!CesiumLosProbe.inSector(zone, azimuthDeg)) return `${zone.name}: not pointing this way`;
                         if (dist > zone.range) return `${zone.name}: reaches only ${km(zone.range)}`;
-                        return `${zone.name}: beam only goes up to ${zone.maxElevationDeg}°`;
+                        return `${zone.name}: beam covers ${zone.minElevationDeg}° to ${zone.maxElevationDeg}°`;
                     })
                 ]
             }, false);
@@ -209,7 +213,7 @@ export class CesiumLosProbe {
             explanation: [
                 `Nothing blocks the line from the radar to an aircraft ${agl} m above this spot.`,
                 `It is ${targetDeg.toFixed(1)}° up from the antenna, inside ${litBy.name}'s beam ` +
-                `(up to ${litBy.maxElevationDeg}°, ${km(litBy.range)} range).`,
+                `(${litBy.minElevationDeg}° to ${litBy.maxElevationDeg}°, ${km(litBy.range)} range).`,
                 `${km(dist)} from the radar.`
             ]
         }, false);

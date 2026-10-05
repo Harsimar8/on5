@@ -7,10 +7,8 @@ import { Team } from "../../core/types/Team";
 import { TeamFilter } from "../../core/models/TeamFilter";
 import {
     CesiumRadarCoverage,
-    DEFAULT_TARGET_HEIGHT_AGL_M,
     RadarCoverageHandle,
-    RadarStyle,
-    RadarZoneOverride
+    RadarStyle
 } from "./CesiumRadarCoverage";
 
 
@@ -101,18 +99,7 @@ export class CesiumEntityRenderer {
     }
 
     private styleOf(entity: Entity): RadarStyle {
-        const props = (entity.definition.properties as any) ?? {};
-        return {
-            beamOpacity: props.beamOpacity ?? 0.28,
-            interiorOpacity: props.interiorOpacity ?? 0.08,
-            showInterior: props.showInterior ?? true,
-            cylinderOpacity: props.cylinderOpacity ?? 0.15,
-            showCylinders: props.showCylinders ?? true,
-            shadowOpacity: props.shadowOpacity ?? 0.6,
-            showShadow: props.showShadow ?? false,
-            bandOpacity: props.bandOpacity ?? 0.3,
-            showBand: props.showBand ?? false
-        };
+        return CesiumRadarCoverage.styleOf((entity.definition.properties as any) ?? {});
     }
 
     private applyStyle(entity: Entity): void {
@@ -133,26 +120,11 @@ export class CesiumEntityRenderer {
             lon: entity.position.longitude,
             lat: entity.position.latitude,
             alt: entity.position.altitude,
-
-            sectorStartDeg: props.sectorStartDeg ?? 0,
-            sectorSweepDeg: props.sectorSweepDeg ?? 360,
-            antennaMastHeight: props.antennaMastHeight ?? 0,
-
-            drawRays: props.drawRays ?? false,
-
-            // beamOpacity / interiorOpacity / showInterior / cylinder style are deliberately not
-            // here: they are applied in place by applyStyle.
+            // Opacities / show toggles are deliberately not here: they are
+            // applied in place by applyStyle.
+            beam: CesiumRadarCoverage.beamOf(props),
             showBlockedPoints: props.showBlockedPoints ?? false,
-            targetHeightAgl: props.targetHeightAgl ?? DEFAULT_TARGET_HEIGHT_AGL_M,
-
-            zoneVisibility: props.zoneVisibility ?? {},
-            zoneRanges: props.zoneRanges ?? {},
-            zoneElevations: props.zoneElevations ?? {},
-
-            azimuthStepDeg: props.azimuthStepDeg,
-            elevationRingsPerZone: props.elevationRingsPerZone,
-            rangeSampleSteps: props.rangeSampleSteps,
-            useObjectPicking: props.useObjectPicking ?? false
+            azimuthStepDeg: props.azimuthStepDeg
         });
     }
 
@@ -180,16 +152,6 @@ export class CesiumEntityRenderer {
 
             const props = (entity.definition.properties as any) ?? {};
 
-            const zoneOverrides: Record<string, RadarZoneOverride> = {};
-            for (const zone of CesiumRadarCoverage.DEFAULT_3D_ZONES) {
-                zoneOverrides[zone.name] = {
-                    visible: props.zoneVisibility?.[zone.name] ?? true,
-                    range: props.zoneRanges?.[zone.name],
-                    minElevationDeg: props.zoneElevations?.[zone.name]?.min,
-                    maxElevationDeg: props.zoneElevations?.[zone.name]?.max
-                };
-            }
-
             const newHandles = await CesiumRadarCoverage.create3DRadarZones(
                 this.viewer,
                 this.terrainProvider,
@@ -198,37 +160,10 @@ export class CesiumEntityRenderer {
                     longitude: entity.position.longitude,
                     latitude: entity.position.latitude,
                     altitude: entity.position.altitude,
-                    mastHeight: props.antennaMastHeight ?? 0,
-                    sectorStartDeg: props.sectorStartDeg ?? 0,
-                    sectorSweepDeg: props.sectorSweepDeg ?? 360,
-                    drawRays: props.drawRays ?? false,
-                    // Multi-ring precision sampling. Raise these per-radar via
-                    // entity properties for finer detail (cost scales as
-                    // azimuths x rings x steps). rangeSampleSteps is left unset
-                    // on purpose: the coverage builder then derives it from each
-                    // zone's range so every zone samples at the same ground
-                    // resolution instead of coarsening as range grows.
-                    azimuthStepDeg: props.azimuthStepDeg ?? 2,
-                    elevationRingsPerZone: props.elevationRingsPerZone ?? 10,
-                    rangeSampleSteps: props.rangeSampleSteps,
-                    // On by default so placed GLB objects block rays. Each ray
-                    // rejects a model on its bounding sphere first, so scenes
-                    // with no objects near the beam cost almost nothing.
-                    useObjectPicking: props.useObjectPicking ?? true,
-
-                    beamOpacity: props.beamOpacity ?? 0.28,
-                    interiorOpacity: props.interiorOpacity ?? 0.08,
-                    showInterior: props.showInterior ?? true,
-                    cylinderOpacity: props.cylinderOpacity ?? 0.15,
-                    showCylinders: props.showCylinders ?? true,
-                    shadowOpacity: props.shadowOpacity ?? 0.6,
-                    showShadow: props.showShadow ?? false,
-                    bandOpacity: props.bandOpacity ?? 0.3,
-                    showBand: props.showBand ?? false,
-                    targetHeightAgl: props.targetHeightAgl ?? DEFAULT_TARGET_HEIGHT_AGL_M,
+                    beam: CesiumRadarCoverage.beamOf(props),
+                    azimuthStepDeg: props.azimuthStepDeg,
                     showBlockedPoints: props.showBlockedPoints ?? false,
-
-                    zoneOverrides
+                    style: this.styleOf(entity)
                 }
             );
 

@@ -11,7 +11,7 @@ import {
 
 import * as Cesium from 'cesium';
 import { CommonModule } from '@angular/common';
-import { CesiumRadarCoverage } from './CesiumRadarCoverage';
+import { BeamSettings, CesiumRadarCoverage, RadarStyle } from './CesiumRadarCoverage';
 import { CesiumPlacement } from './CesiumPlacement';
 import { CesiumEntityRenderer } from "./CesiumEntityRenderer";
 import { CesiumHover } from "./CesiumHover";
@@ -233,7 +233,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
 
     await BuildingLayer.load(this.viewer);
 
-    await this.loadTestGLBs();
+   
 
 
     this.renderer = new CesiumEntityRenderer(
@@ -454,9 +454,6 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
     return inside;
   }
 
-  // Full zone configs (name + color + defaults) for the panel
-  protected readonly radarZones = CesiumRadarCoverage.DEFAULT_3D_ZONES;
-
   private getRadarProps(): Record<string, any> {
     return (this.editorState.selectedEntity()?.definition?.properties as any) ?? {};
   }
@@ -465,118 +462,44 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
     return this.getRadarProps()[key] ?? fallback;
   }
 
-  protected getZoneVisible(zone: string): boolean {
-    return (this.getRadarProps()['zoneVisibility']?.[zone]) ?? true;
+  protected beam(): BeamSettings {
+    return CesiumRadarCoverage.beamOf(this.getRadarProps());
   }
 
-  protected getZoneRange(zone: string): number | null {
-    return this.getRadarProps()['zoneRanges']?.[zone] ?? null;
+  protected radarStyle(): RadarStyle {
+    return CesiumRadarCoverage.styleOf(this.getRadarProps());
   }
 
-  protected getZoneMaxElevation(zone: string): number | null {
-    return this.getRadarProps()['zoneElevations']?.[zone]?.max ?? null;
+  protected readonly beamWidthPresets = [30, 60, 90, 180, 360];
+
+  // Allowed range of every beam value typed in or slid.
+  private static readonly BEAM_LIMITS: Record<string, [number, number]> = {
+    beamAzimuthDeg: [0, 359.9],
+    beamWidthDeg: [1, 360],
+    beamMinElevationDeg: [-10, 90],
+    beamMaxElevationDeg: [-10, 90],
+    beamRange: [500, 100000],
+    raysAcross: [1, 180],
+    raysUp: [1, 60]
+  };
+
+  onBeamChange(key: string, value: string): void {
+    const v = +value;
+    if (!Number.isFinite(v)) return;
+    const [lo, hi] = CesiumMap.BEAM_LIMITS[key] ?? [-Infinity, Infinity];
+    this.updateRadarProperty({ [key]: Math.min(hi, Math.max(lo, v)) });
   }
 
-  protected zoneDefaultRange(zoneName: string): number {
-    return this.radarZones.find(z => z.name === zoneName)?.defaultRange ?? 0;
-  }
-
-  protected zoneDefaultMaxElevation(zoneName: string): number {
-    return this.radarZones.find(z => z.name === zoneName)?.defaultMaxElevationDeg ?? 0;
-  }
-
-  onSectorStartChange(value: string): void {
-    this.updateRadarProperty({ sectorStartDeg: +value });
-  }
-
-  onSectorSweepChange(value: string): void {
-    this.updateRadarProperty({ sectorSweepDeg: +value });
+  onStyleChange(patch: Partial<RadarStyle>): void {
+    this.updateRadarProperty(patch);
   }
 
   onElevationChange(value: string): void {
     this.updateRadarProperty({ antennaMastHeight: +value });
   }
 
-  onZoneVisibilityChange(zone: string, checked: boolean): void {
-    const current = this.getRadarProp<Record<string, boolean>>('zoneVisibility', {});
-    this.updateRadarProperty({ zoneVisibility: { ...current, [zone]: checked } });
-  }
-
-  onZoneRangeChange(zone: string, value: string): void {
-    const current = this.getRadarProp<Record<string, number>>('zoneRanges', {});
-    this.updateRadarProperty({ zoneRanges: { ...current, [zone]: +value } });
-  }
-
-  onZoneMaxElevationChange(zone: string, value: string): void {
-    const current = this.getRadarProp<Record<string, { min: number; max: number }>>('zoneElevations', {});
-    this.updateRadarProperty({
-      zoneElevations: { ...current, [zone]: { ...current[zone], min: current[zone]?.min ?? 0, max: +value } }
-    });
-  }
-
-  onDrawRaysChange(checked: boolean): void {
-    this.updateRadarProperty({ drawRays: checked });
-  }
-
-  onBeamOpacityChange(value: string): void {
-  const opacity = Math.max(
-    0,
-    Math.min(1, +value)
-  );
-
-  this.updateRadarProperty({
-    beamOpacity: opacity
-  });
-}
-
-onInteriorOpacityChange(value: string): void {
-  const opacity = Math.max(
-    0,
-    Math.min(0.30, +value)
-  );
-
-  this.updateRadarProperty({
-    interiorOpacity: opacity
-  });
-}
-
-onCylinderOpacityChange(value: string): void {
-  this.updateRadarProperty({
-    cylinderOpacity: Math.max(0, Math.min(1, +value))
-  });
-}
-
-onCylinderToggle(checked: boolean): void {
-  this.updateRadarProperty({
-    showCylinders: checked
-  });
-}
-
-onInteriorToggle(checked: boolean): void {
-  this.updateRadarProperty({
-    showInterior: checked
-  });
-}
-
   onTargetHeightChange(value: string): void {
     this.updateRadarProperty({ targetHeightAgl: Math.max(0, +value) });
-  }
-
-  onShadowOpacityChange(value: string): void {
-    // Moving the slider means the user wants to see the dark layer.
-    this.updateRadarProperty({ shadowOpacity: Math.max(0, Math.min(1, +value)), showShadow: true });
-  }
-
-  onShadowToggle(checked: boolean): void {
-    this.updateRadarProperty({ showShadow: checked });
-  }
-
-  onBandOpacityChange(value: string): void {
-    this.updateRadarProperty({ bandOpacity: Math.max(0, Math.min(1, +value)) });
-  }
-
-  onBandToggle(checked: boolean): void {
-    this.updateRadarProperty({ showBand: checked });
   }
 
   onLosProbeToggle(checked: boolean): void {
@@ -595,10 +518,6 @@ onInteriorToggle(checked: boolean): void {
 
   onShowBlockedPointsChange(checked: boolean): void {
     this.updateRadarProperty({ showBlockedPoints: checked });
-  }
-
-  toggleDrawRays(): void {
-    this.onDrawRaysChange(!this.getRadarProp('drawRays', false));
   }
 
   refreshRadarCoverage(): void {
@@ -817,58 +736,6 @@ onInteriorToggle(checked: boolean): void {
 
   }
 
-
- private async loadTestGLBs(): Promise<void> {
-
-  const longitude = 74.89513005356172;
-  const latitude = 31.54178024749536;
-  const terrainHeight = 179.27878368853075;
-
-  const height = terrainHeight + 20;
-
-  const model = await Cesium.Model.fromGltfAsync({
-    url: 'assets/models/F_16.glb',
-
-    scale: 50,
-
-    modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
-      Cesium.Cartesian3.fromDegrees(
-        longitude,
-        latitude,
-        height
-      )
-    )
-  });
-
-  this.viewer.scene.primitives.add(model);
-
-  console.log("F16 ADDED TO SCENE");
-  console.log("MODEL READY:", model.ready);
-
-  model.readyEvent.addEventListener(() => {
-
-  console.log("========== F16 READY ==========");
-  console.log("MODEL READY:", model.ready);
-
-  const sphere = model.boundingSphere;
-
-  console.log("CENTER:", sphere.center);
-  console.log("RADIUS:", sphere.radius);
-
-  console.log("================================");
-});
-
-  console.log("STARTING FLY TO F16");
-
-  this.viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(
-      longitude,
-      latitude,
-      500
-    ),
-    duration: 2
-  });
-}
 
   ngOnDestroy(): void {
 
