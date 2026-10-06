@@ -479,6 +479,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
     beamMinElevationDeg: [-10, 90],
     beamMaxElevationDeg: [-10, 90],
     beamRange: [500, 100000],
+    beamWallDetailDeg: [0.5, 5],
     raysAcross: [1, 180],
     raysUp: [1, 60]
   };

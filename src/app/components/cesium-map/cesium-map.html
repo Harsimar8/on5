@@ -182,11 +182,36 @@
           <div class="beam-control__range"><span>Transparent</span><span>Solid</span></div>
         </div>
 
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Terrain-hit Wall Opacity</span>
+            <strong>{{ radarStyle().hitWallOpacity * 100 | number:'1.0-0' }}%</strong>
+          </div>
+          <input class="beam-slider" type="range" min="0" max="1" step="0.01"
+            [value]="radarStyle().hitWallOpacity"
+            (input)="onStyleChange({ hitWallOpacity: +$any($event.target).value })">
+          <div class="beam-control__range"><span>Hidden</span><span>Solid</span></div>
+        </div>
+
+        <div class="beam-control">
+          <div class="beam-control__header">
+            <span>Beam Wall Detail</span>
+            <strong>{{ beam().wallDetailDeg | number:'1.1-1' }}°</strong>
+          </div>
+          <input class="beam-slider" type="range" min="0.5" max="5" step="0.5"
+            [value]="beam().wallDetailDeg"
+            (change)="onBeamChange('beamWallDetailDeg', $any($event.target).value)">
+          <div class="beam-control__range"><span>Fine</span><span>Coarse</span></div>
+          <small class="zone-card__hint">
+            Coarser detail smooths the beam mesh; ground-footprint masking keeps its full detail.
+          </small>
+        </div>
+
         <label class="checkbox-field">
           <input type="checkbox"
             [checked]="radarStyle().showBlocked"
             (change)="onStyleChange({ showBlocked: $any($event.target).checked })">
-          <span>Show Ground Footprint (green / red)</span>
+          <span>Show Ground Footprint (green / dark)</span>
         </label>
 
         <div class="beam-control">

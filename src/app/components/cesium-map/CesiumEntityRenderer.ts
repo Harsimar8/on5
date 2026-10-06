@@ -70,10 +70,13 @@ export class CesiumEntityRenderer {
         }
 
         // Clean up coverage for radars that no longer exist / no longer pass the filter
-        for (const existingId of Array.from(this.radarEntities.keys())) {
-            if (!seenIds.has(existingId)) {
-                this.removeRadarCoverage(existingId);
-            }
+        const trackedIds = new Set([
+            ...this.radarEntities.keys(),
+            ...this.buildInFlight,
+            ...this.latestEntity.keys()
+        ]);
+        for (const existingId of trackedIds) {
+            if (!seenIds.has(existingId)) this.removeRadarCoverage(existingId);
         }
 
         this.viewer.scene.requestRender();
@@ -85,6 +88,13 @@ export class CesiumEntityRenderer {
     }
 
     private removeRadarCoverage(entityId: string): void {
+        this.disposeRadarCoverage(entityId);
+        this.pendingRebuild.delete(entityId);
+        this.lastAppliedStyle.delete(entityId);
+        this.latestEntity.delete(entityId);
+    }
+
+    private disposeRadarCoverage(entityId: string): void {
         const existing = this.radarEntities.get(entityId);
         if (existing) {
             for (const handle of existing) {
@@ -93,9 +103,6 @@ export class CesiumEntityRenderer {
         }
         this.radarEntities.delete(entityId);
         this.lastBuiltSignature.delete(entityId);
-        this.pendingRebuild.delete(entityId);
-        this.lastAppliedStyle.delete(entityId);
-        this.latestEntity.delete(entityId);
     }
 
     private styleOf(entity: Entity): RadarStyle {
@@ -139,6 +146,10 @@ export class CesiumEntityRenderer {
             return;
         }
 
+        // Remove the previous geometry as soon as its inputs change, rather
+        // than leaving it on the map while terrain sampling rebuilds it.
+        this.disposeRadarCoverage(entity.id);
+
         if (this.buildInFlight.has(entity.id)) {
             // Park the newest state; the running build rebuilds from it when
             // it finishes. Older parked states are simply overwritten.
@@ -167,12 +178,10 @@ export class CesiumEntityRenderer {
                 }
             );
 
-            // Swap old -> new only after the new build succeeds
-            const old = this.radarEntities.get(entity.id);
-            if (old) {
-                for (const handle of old) {
-                    handle.dispose();
-                }
+            const latest = this.latestEntity.get(entity.id);
+            if (!latest || this.buildSignature(latest) !== signature) {
+                for (const handle of newHandles) handle.dispose();
+                return;
             }
 
             this.radarEntities.set(entity.id, newHandles);
