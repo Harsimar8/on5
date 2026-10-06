@@ -47,7 +47,8 @@ export class CesiumEntityRenderer {
         private viewer: Cesium.Viewer,
         private terrainProvider: Cesium.TerrainProvider,
         private teamFilterService: TeamFilterService,
-        private editorState: EditorState
+        private editorState: EditorState,
+        private readonly onRadarBuildStateChange: (entityId: string, building: boolean) => void = () => { }
     ) { }
 
     render(entities: Entity[]): void {
@@ -87,6 +88,10 @@ export class CesiumEntityRenderer {
         this.lastBuiltSignature.delete(entityId);
     }
 
+    isRadarBuilding(entityId: string): boolean {
+        return this.buildInFlight.has(entityId) || this.pendingRebuild.has(entityId);
+    }
+
     private removeRadarCoverage(entityId: string): void {
         this.disposeRadarCoverage(entityId);
         this.pendingRebuild.delete(entityId);
@@ -120,6 +125,13 @@ export class CesiumEntityRenderer {
         this.lastAppliedStyle.set(entity.id, key);
     }
 
+    applyRadarStyle(entity: Entity): void {
+        this.latestEntity.set(entity.id, entity);
+        this.lastAppliedStyle.delete(entity.id);
+        this.applyStyle(entity);
+        this.viewer.scene.requestRender();
+    }
+
     private buildSignature(entity: Entity): string {
         const props = (entity.definition.properties as any) ?? {};
 
@@ -146,10 +158,6 @@ export class CesiumEntityRenderer {
             return;
         }
 
-        // Remove the previous geometry as soon as its inputs change, rather
-        // than leaving it on the map while terrain sampling rebuilds it.
-        this.disposeRadarCoverage(entity.id);
-
         if (this.buildInFlight.has(entity.id)) {
             // Park the newest state; the running build rebuilds from it when
             // it finishes. Older parked states are simply overwritten.
@@ -158,6 +166,7 @@ export class CesiumEntityRenderer {
         }
 
         this.buildInFlight.add(entity.id);
+        this.onRadarBuildStateChange(entity.id, true);
 
         try {
 
@@ -184,6 +193,8 @@ export class CesiumEntityRenderer {
                 return;
             }
 
+            // Keep the old coverage visible until its replacement is complete.
+            this.disposeRadarCoverage(entity.id);
             this.radarEntities.set(entity.id, newHandles);
             this.lastBuiltSignature.set(entity.id, signature);
 
@@ -203,7 +214,9 @@ export class CesiumEntityRenderer {
 
             if (pending) {
                 this.pendingRebuild.delete(entity.id);
-                this.syncRadarCoverage(pending);
+                await this.syncRadarCoverage(pending);
+            } else {
+                this.onRadarBuildStateChange(entity.id, false);
             }
         }
     }

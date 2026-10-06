@@ -43,6 +43,13 @@
       </div>
     </div>
 
+    @if (radarBuilding()) {
+      <div class="radar-panel__loading" role="status" aria-live="polite">
+        <span class="radar-panel__loading-spinner" aria-hidden="true"></span>
+        <span>Updating radar coverage…</span>
+      </div>
+    }
+
     <div class="radar-panel__body">
 
       <section class="radar-section">

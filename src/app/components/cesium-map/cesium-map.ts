@@ -16,6 +16,7 @@ import { CesiumPlacement } from './CesiumPlacement';
 import { CesiumEntityRenderer } from "./CesiumEntityRenderer";
 import { CesiumHover } from "./CesiumHover";
 import { TeamFilter } from '../../core/models/TeamFilter';
+import { Entity } from '../../core/models/Entity';
 import { EntityRepository } from "../../core/services/EntityRepository";
 import { EditorState } from '../../core/state/EditorState';
 import { TeamFilterService } from '../../core/services/TeamFilterService';
@@ -119,6 +120,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
       if (id !== this.lastSelectedEntityId) {
         this.lastSelectedEntityId = id;
         this.radarPanelClosed.set(false);
+        this.radarBuilding.set(id ? this.renderer?.isRadarBuilding(id) ?? false : false);
       }
     });
 
@@ -148,6 +150,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
 
   private lastSelectedEntityId: string | null = null;
   protected readonly radarPanelClosed = signal(false);
+  protected readonly radarBuilding = signal(false);
 
   // Click-to-explain line of sight ("why is this spot not covered?").
   private losProbe!: CesiumLosProbe;
@@ -240,7 +243,12 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
       this.viewer,
       terrainProvider,
       this.teamFilterService,
-      this.editorState
+      this.editorState,
+      (entityId, building) => {
+        if (this.editorState.selectedEntity()?.id === entityId) {
+          this.radarBuilding.set(building);
+        }
+      }
     );
 
 
@@ -492,7 +500,8 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
   }
 
   onStyleChange(patch: Partial<RadarStyle>): void {
-    this.updateRadarProperty(patch);
+    const entity = this.updateRadarProperty(patch);
+    if (entity) this.renderer?.applyRadarStyle(entity);
   }
 
   onElevationChange(value: string): void {
@@ -593,7 +602,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
     this.viewer.camera.flyToBoundingSphere(glb.model.boundingSphere, { duration: 1 });
   }
 
-  updateRadarProperty(patch: Record<string, unknown>): void {
+  updateRadarProperty(patch: Record<string, unknown>): Entity | undefined {
     const entity = this.editorState.selectedEntity();
     if (!entity || entity.definition.entityType !== 'RadarSite') return;
 
@@ -605,6 +614,7 @@ export class CesiumMap implements AfterViewInit, OnDestroy {
 
     this.entityRepository.update(entity.id, { definition: updatedEntity.definition });
     this.editorState.selectedEntity.set(updatedEntity);
+    return updatedEntity;
   }
 
   private handleLeftClick(
