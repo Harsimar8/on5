@@ -103,7 +103,12 @@ export class CesiumEntityRenderer {
         const existing = this.radarEntities.get(entityId);
         if (existing) {
             for (const handle of existing) {
-                handle.dispose();
+                // One failing handle must not leave the others drawn.
+                try {
+                    handle.dispose();
+                } catch (err) {
+                    console.error("Failed to dispose radar coverage:", err);
+                }
             }
         }
         this.radarEntities.delete(entityId);
@@ -215,6 +220,8 @@ export class CesiumEntityRenderer {
             if (pending) {
                 this.pendingRebuild.delete(entity.id);
                 await this.syncRadarCoverage(pending);
+                // The parked state may not have needed a rebuild after all.
+                if (!this.isRadarBuilding(entity.id)) this.onRadarBuildStateChange(entity.id, false);
             } else {
                 this.onRadarBuildStateChange(entity.id, false);
             }

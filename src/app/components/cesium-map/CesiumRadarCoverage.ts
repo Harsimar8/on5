@@ -267,10 +267,28 @@ export class CesiumRadarCoverage {
         terrainProvider: Cesium.TerrainProvider,
         options: RadarOptions
     ): Promise<RadarCoverageHandle[]> {
+        const handles: RadarCoverageHandle[] = [];
+        try {
+            await CesiumRadarCoverage.buildRadarZones(viewer, terrainProvider, options, handles);
+            return handles;
+        } catch (err) {
+            // Anything already added to the scene would otherwise stay drawn forever.
+            for (const handle of handles) {
+                try { handle.dispose(); } catch { }
+            }
+            throw err;
+        }
+    }
+
+    private static async buildRadarZones(
+        viewer: Cesium.Viewer,
+        terrainProvider: Cesium.TerrainProvider,
+        options: RadarOptions,
+        handles: RadarCoverageHandle[]
+    ): Promise<void> {
 
         const { entityId, longitude, latitude, showBlockedPoints = false } = options;
         const mastHeight = Math.max(0, options.beam.mastHeight);
-        const handles: RadarCoverageHandle[] = [];
 
         // Ground polylines are built synchronously, so the old coverage is only
         // swapped out once the new one is ready to draw (no flicker while dragging).
@@ -419,7 +437,6 @@ export class CesiumRadarCoverage {
         handles.push({ dispose: () => { }, setStyle: applyStyle });
 
         viewer.scene.requestRender();
-        return handles;
     }
 
     // -------------------------------------------------------------------
@@ -960,7 +977,9 @@ export class CesiumRadarCoverage {
         let primitive: Cesium.Primitive | null = null;
         let builtOpacity = -1;
         let builtHitWallOpacity = -1;
+        let disposed = false;
         const draw = (opacity: number, hitWallOpacity: number) => {
+            if (disposed) return;
             if (opacity === builtOpacity && hitWallOpacity === builtHitWallOpacity) return;
             builtOpacity = opacity;
             builtHitWallOpacity = hitWallOpacity;
@@ -1004,7 +1023,9 @@ export class CesiumRadarCoverage {
 
         return {
             dispose: () => {
+                disposed = true;
                 if (primitive) viewer.scene.primitives.remove(primitive);
+                primitive = null;
                 for (const e of edges) viewer.entities.remove(e);
             },
             setStyle: (st: RadarStyle) => {
@@ -1047,8 +1068,12 @@ export class CesiumRadarCoverage {
 
         const lines = viewer.scene.primitives.add(new Cesium.PolylineCollection()) as Cesium.PolylineCollection;
         const hits = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection()) as Cesium.PointPrimitiveCollection;
-        const hitMaterial = Cesium.Material.fromType("Color", { color: RAY_HIT_COLOR.withAlpha(0.95) });
-        const clearMaterial = Cesium.Material.fromType("Color", { color: RAY_CLEAR_COLOR.withAlpha(0.7) });
+        // Each polyline needs its own Material: PolylineCollection.destroy()
+        // destroys every polyline's material, so a shared one throws on the
+        // second polyline and leaves the rest of the old coverage on screen.
+        const rayMaterial = (hit: boolean) => Cesium.Material.fromType("Color", {
+            color: hit ? RAY_HIT_COLOR.withAlpha(0.95) : RAY_CLEAR_COLOR.withAlpha(0.7)
+        });
 
         for (const r of rowSet) {
             for (const deg of angles) {
@@ -1061,7 +1086,7 @@ export class CesiumRadarCoverage {
                     const h = tip.hit && k === RAY_LINE_POINTS ? g.height : CesiumRadarCoverage.beamHeightAt(angle, d, radarHeight);
                     positions.push(Cesium.Cartesian3.fromRadians(g.lon, g.lat, h));
                 }
-                lines.add({ positions, width: tip.hit ? 1.6 : 1.1, material: tip.hit ? hitMaterial : clearMaterial });
+                lines.add({ positions, width: tip.hit ? 1.6 : 1.1, material: rayMaterial(tip.hit) });
 
                 if (tip.hit) {
                     const g = CesiumRadarCoverage.groundAt(grid, r, tip.dist, lastCol);
